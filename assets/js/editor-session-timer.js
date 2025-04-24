@@ -1,4 +1,4 @@
- ( function( $ ) {
+( function( $ ) {
     // editor-session-timer loaded
     var estStartTime = null;
     var estTimerInterval = null;
@@ -16,21 +16,16 @@
 
     // Start or resume timer, updating timerEl
     function startTimer( timerEl ) {
-        if ( estPaused ) {
-            // Resume: adjust start time to account for paused duration
-            estStartTime = Date.now() - estElapsedBeforePause;
-        } else {
-            estStartTime = Date.now();
-            estElapsedBeforePause = 0;
-        }
-        estPaused = false;
         clearInterval( estTimerInterval );
-        timerEl.text( formatTime( Date.now() - estStartTime ) );
+        estStartTime = Date.now();
+        estElapsedBeforePause = 0;
+        estPaused = false;
+        
         estTimerInterval = setInterval( function() {
             var elapsed = Date.now() - estStartTime;
             timerEl.text( formatTime( elapsed ) );
         }, 1000 );
-        // Reset inactivity countdown
+        
         resetInactivityTimer();
     }
 
@@ -60,23 +55,32 @@
             var pubGroup = editorWrapper.find('div[role="group"].MuiButtonGroup-root.MuiButtonGroup-contained');
             var pubButton = pubGroup.find('button.MuiButton-containedPrimary').first();
             if ( ! pubButton.length ) {
-                return;
+                // Intentar encontrar el botón de otra manera
+                pubButton = editorWrapper.find('button.MuiButton-containedPrimary').first();
+                if (!pubButton.length) {
+                    return;
+                }
             }
             if ( pubButton.find('#est-session-timer').length ) {
                 return;
             }
             var timerEl = $( '<span id="est-session-timer">00:00</span>' );
-            pubButton.append( timerEl );
-            // Observe disabled/enabled state and spinner presence
+            
+            // Asegurarse de que el botón esté completamente cargado antes de agregar el timer
+            setTimeout(function() {
+                pubButton.append( timerEl );
+            }, 100);
+            
+            // Un solo observador para manejar todos los cambios del botón
             ( function() {
                 var spinnerVisible = pubButton.find( '.MuiCircularProgress-root' ).length > 0;
                 var btnObserver = new MutationObserver( function( mutations ) {
-                    // Handle disabled state
                     mutations.forEach( function( m ) {
                         if ( m.type === 'attributes' && m.attributeName === 'disabled' ) {
-                    if ( pubButton.prop( 'disabled' ) ) {
+                            if ( pubButton.prop( 'disabled' ) ) {
                                 stopTimer();
-                            } else {
+                                timerEl.text('00:00');
+                            } else if (!estTimerInterval) {
                                 startTimer( timerEl );
                             }
                         }
@@ -94,14 +98,18 @@
                 } );
                 btnObserver.observe( pubButton[0], { attributes: true, attributeFilter: [ 'disabled' ], childList: true, subtree: true } );
             } )();
+
             // Initial state: start or stop timer based on button enabled state
             if ( pubButton.prop( 'disabled' ) ) {
+                timerEl.text('00:00');
             } else {
                 startTimer( timerEl );
             }
+
             // Reset timer on button click (publish/update)
             pubButton.on( 'click', function() {
-                startTimer( timerEl );
+                stopTimer();
+                timerEl.text('00:00');
             } );
             
             // Activity listener: clicks or keypresses anywhere in the Elementor editor body reset or resume timer
